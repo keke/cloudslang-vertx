@@ -1,0 +1,99 @@
+group 'io.kk'
+
+
+apply plugin: 'java'
+apply plugin: "jacoco"
+apply plugin: 'maven'
+apply plugin: 'org.junit.platform.gradle.plugin'
+sourceCompatibility = 1.8
+
+repositories {
+  mavenLocal()
+  mavenCentral()
+}
+
+dependencies {
+
+  compile group: 'commons-io', name: 'commons-io', version: "$commonsIoVersion"
+  compile group: 'org.apache.commons', name: 'commons-lang3', version: "$commonsLang3Version"
+  compile group: 'io.cloudslang.lang', name: 'cloudslang-all', version: "$cloudSlangVersion"
+  compile("io.cloudslang:score-all:$scoreVersion") {
+    exclude group: "org.slf4j", module: "slf4j-log4j12"
+  }
+  compile group: 'io.cloudslang', name: 'score-api', version: "$scoreVersion"
+
+  compile group: 'org.slf4j', name: 'slf4j-api', version: "$slf4jVersion"
+  compile group: 'io.vertx', name: 'vertx-web', version: "$vertxVersion"
+  compile group: 'com.google.guava', name: "guava", version: "$guavaVersion"
+  compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: "$jacksonVersion"
+
+
+  runtime group: 'com.h2database', name: 'h2', version: "$h2Version"
+  runtime group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: "$jacksonVersion"
+
+  runtime "org.apache.logging.log4j:log4j-core:$log4JVersion"
+  runtime "org.apache.logging.log4j:log4j-jul:$log4JVersion"
+  runtime group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: "$log4JVersion"
+  runtime "org.slf4j:jul-to-slf4j:$slf4jVersion"
+
+  testCompile "org.mockito:mockito-all:$mockitoVersion"
+  testCompile "org.junit.jupiter:junit-jupiter-api:$junitVersion"
+  testRuntime "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
+
+
+}
+
+test {
+  reports {
+    junitXml.enabled = false
+    html.enabled = true
+  }
+  jacoco {
+    append = false
+    destinationFile = file("$buildDir/jacoco/jacocoTest.exec")
+    classDumpFile = file("$buildDir/jacoco/classpathdumps")
+  }
+}
+
+jacoco {
+  toolVersion = "0.7.6.201602180812"
+}
+
+jacocoTestReport {
+  reports {
+    xml.enabled false
+    csv.enabled false
+  }
+}
+task testReport(type: TestReport) {
+  destinationDir = file("$buildDir/reports/allTests")
+  // Include the results from the `test` task in all subprojects
+  reportOn subprojects*.test
+}
+
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath 'org.junit.platform:junit-platform-gradle-plugin:1.0.0-M2'
+  }
+}
+
+junitPlatform {
+  // platformVersion '1.0.0-SNAPSHOT'
+  engines {
+    // include 'junit-jupiter', 'junit-vintage'
+    // exclude 'custom-engine'
+  }
+  tags {
+    // include 'fast'
+//    exclude 'slow'
+  }
+  includeClassNamePattern '.*Test'
+  // enableStandardTestTask true
+  // reportsDir "build/test-results/junit-platform" // this is the default
+  logManager 'org.apache.logging.log4j.jul.LogManager'
+}
+
+install.dependsOn test
