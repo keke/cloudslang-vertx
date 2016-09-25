@@ -1,3 +1,22 @@
 {
-  "config":{}
+  "config": {
+    "boot": {
+      "api": "io.kk.cloudslang.vertx.CloudSlangApi",
+      "service": "io.kk.cloudslang.vertx.CloudSlangService"
+    },
+    "api": {
+      "config": {
+        "server": {
+          "port": 9999,
+          "compressionSupported": true
+        },
+        "baseUrl": "/urest/v1"
+      }
+    },
+    "service": {
+      "worker": true,
+      "config": {
+      }
+    }
+  }
 }
