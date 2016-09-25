@@ -11,6 +11,10 @@ import java.util.Objects;
 public class FlowParams implements Serializable {
   private JsonObject json;
 
+  public FlowParams() {
+    this(new JsonObject());
+  }
+
   public FlowParams(JsonObject jsonObject) {
     this.json = Objects.requireNonNull(jsonObject);
   }
@@ -19,17 +23,22 @@ public class FlowParams implements Serializable {
     this(new JsonObject(Objects.requireNonNull(value)));
   }
 
+  public String getFlowName() {
+    return json.getString("name");
+  }
+
   public FlowParams setFlowName(String name) {
     json.put("name", name);
     return this;
   }
 
-  public String getFlowName() {
-    return json.getString("name");
-  }
-
   public JsonObject getArgs() {
     return json.getJsonObject("args");
+  }
+
+  public FlowParams setArgs(JsonObject args) {
+    json.put("args", args);
+    return this;
   }
 
   public String getExecId() {

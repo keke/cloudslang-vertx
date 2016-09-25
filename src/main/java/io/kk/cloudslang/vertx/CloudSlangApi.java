@@ -29,6 +29,7 @@ public class CloudSlangApi extends AbstractVerticle {
   private Router restApi;
   private MessageProducer<FlowParams> publisher;
 
+
   @Override
   public void start(Future<Void> startFuture) throws Exception {
 
@@ -72,7 +73,6 @@ public class CloudSlangApi extends AbstractVerticle {
     }
     FlowParams params = new FlowParams(data);
     params.setFlowName(routingContext.request().getParam(NAME));
-//    data.put(NAME, routingContext.request().getParam(NAME));
     String id = UUID.randomUUID().toString();
     data.put("execId", id);
     params.setExecId(id);

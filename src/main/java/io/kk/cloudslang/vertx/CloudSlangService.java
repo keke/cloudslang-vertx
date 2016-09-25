@@ -9,6 +9,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.eventbus.MessageConsumer;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -18,10 +19,7 @@ import org.springframework.context.support.ClassPathXmlApplicationContext;
 
 import java.io.File;
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author keke
@@ -29,14 +27,20 @@ import java.util.Set;
 public class CloudSlangService extends AbstractVerticle {
   public static final String EXEC_FLOW = CloudSlangService.class + ".execflow";
   public static final String EXEC_FLOW_RESPONSE = EXEC_FLOW + "_response";
-  public static final String EVENT_EXECUTION_FINISHED = "EVENT_EXECUTION_FINISHED";
-  public static final String EXECUTION_ID = "EXECUTION_ID";
+  public static final String SLANG_EXECUTION_EXCEPTION = "SLANG_EXECUTION_EXCEPTION";
+  private static final String EVENT_EXECUTION_FINISHED = "EVENT_EXECUTION_FINISHED";
+  private static final String EXECUTION_ID = "EXECUTION_ID";
   private static final Logger LOG = LoggerFactory.getLogger(CloudSlangService.class);
   private Slang slang;
   private File contentPath;
+  private List<DependenciesLoader> loaders = new ArrayList<>();
+  private List<SystemPropertiesLoader> spLoaders = new ArrayList<>();
 
   @Override
   public void start(Future<Void> startFuture) throws Exception {
+    loadLoaders("loaders", loaders);
+    loadLoaders("systemPropertiesLoader", spLoaders);
+
     vertx.eventBus().registerDefaultCodec(FlowParams.class, new FlowParamsCodec());
     vertx.eventBus().registerDefaultCodec(ExecResponse.class, new ExecResponseCodec());
     contentPath = new File(getContentPath()).getAbsoluteFile().getCanonicalFile();
@@ -57,6 +61,16 @@ public class CloudSlangService extends AbstractVerticle {
     super.stop(stopFuture);
   }
 
+  private <T> void loadLoaders(String name, List<T> list) {
+    config().getJsonArray(name, new JsonArray()).forEach(l -> {
+      try {
+        list.add((T) Class.forName(l.toString()).newInstance());
+      } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+        LOG.warn("Unable to load loader " + l, e);
+      }
+    });
+  }
+
   private void initCloudSlang() {
     ApplicationContext applicationContext =
         new ClassPathXmlApplicationContext("/META-INF/spring/context.xml");
@@ -67,17 +81,34 @@ public class CloudSlangService extends AbstractVerticle {
   private void handleCloudSlangEvent(ScoreEvent scoreEvent) {
     LOG.debug("CS event: {}", scoreEvent.getEventType());
     String type = scoreEvent.getEventType();
+    if (LOG.isDebugEnabled()) {
+//      CS event: SLANG_EXECUTION_EXCEPTION
+//      1474815791619- [DEBUG] 2016-09-25 23:03:11.619 [scoreWorkerScheduler-3] i.k.c.v.CloudSlangService - CS event: SCORE_FINISHED_EVENT
+      if (scoreEvent.getEventType().equals("SCORE_FINISHED_EVENT")) {
+        LOG.debug("Score finished event={} - data={}", scoreEvent.getEventType(), scoreEvent.getData());
+      }
+      if (scoreEvent.getEventType().equals("SLANG_EXECUTION_EXCEPTION")) {
+        LOG.debug("Score finished event={} - data={}", scoreEvent.getEventType(), scoreEvent.getData());
+      }
+    }
     if (type.equals(EVENT_EXECUTION_FINISHED)) {
       Map<String, Object> dataMap = (Map<String, Object>) scoreEvent.getData();
       long execId = ((Long) dataMap.get(EXECUTION_ID));
       String result = dataMap.get("RESULT").toString();
       ExecResponse response = new ExecResponse();
       response.setStatus(result);
-
       if (response.getStatus().equals("success")) {
         Map<String, Object> outputs = (Map<String, Object>) dataMap.get("OUTPUTS");
         response.setResult(new JsonObject(outputs));
       }
+      vertx.eventBus().send(execId + ".finished", response);
+    } else if (type.equals(SLANG_EXECUTION_EXCEPTION)) {
+      Map<String, Object> dataMap = (Map<String, Object>) scoreEvent.getData();
+      long execId = ((Long) dataMap.get(EXECUTION_ID));
+//      String result = dataMap.get("RESULT").toString();
+      ExecResponse response = new ExecResponse();
+      response.setStatus("error");
+      response.setErrorReason(dataMap.get("EXCEPTION").toString());
       vertx.eventBus().send(execId + ".finished", response);
     }
   }
@@ -118,7 +149,7 @@ public class CloudSlangService extends AbstractVerticle {
           } else {
             response.setStatusCode(500);
           }
-          vertx.eventBus().publish(address, h.body());
+          vertx.eventBus().publish(address, response);
           consumer.unregister();
         });
         consumer.exceptionHandler(ex -> {
@@ -127,7 +158,7 @@ public class CloudSlangService extends AbstractVerticle {
           response.setStatus("error");
           response.setStatusCode(500);
           response.setErrorReason(ex.toString() + " - " + ex.getMessage());
-          vertx.eventBus().publish(address, ex);
+          vertx.eventBus().publish(address, response);
           consumer.unregister();
         });
       } catch (Exception e) {
@@ -145,6 +176,9 @@ public class CloudSlangService extends AbstractVerticle {
 
   private Set<SystemProperty> getSystemProperties() {
     Set<SystemProperty> props = new HashSet<>();
+    spLoaders.forEach(l -> {
+      props.addAll(l.load(config()));
+    });
     return props;
   }
 
@@ -168,6 +202,9 @@ public class CloudSlangService extends AbstractVerticle {
       } else {
         depSet.add(SlangSource.fromFile(getContentFile(name, dep)));
       }
+    });
+    loaders.forEach(l -> {
+      depSet.addAll(l.load(config()));
     });
     return depSet;
   }
