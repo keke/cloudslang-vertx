@@ -129,6 +129,7 @@ bintray {
   key = System.getenv("BINTRAY_KEY")
   publications = ['MyPublication']
   publish = true
+  override = true
   pkg {
     repo = 'keke-maven'
     name = 'cloudslang-vertx'
