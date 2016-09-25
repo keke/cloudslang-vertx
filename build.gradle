@@ -43,7 +43,13 @@ dependencies {
   compile group: 'org.slf4j', name: 'slf4j-api', version: "$slf4jVersion"
   compile group: 'io.vertx', name: 'vertx-web', version: "$vertxVersion"
   compile group: 'com.google.guava', name: "guava", version: "$guavaVersion"
-
+  compile group: 'io.cloudslang.lang', name: 'cloudslang-all', version: "$cloudSlangVersion"
+  compile("io.cloudslang:score-all:$scoreVersion") {
+    exclude group: "org.slf4j", module: "slf4j-log4j12"
+  }
+  compile group: 'io.cloudslang', name: 'score-api', version: "$scoreVersion"
+  runtime group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: "$jacksonVersion"
+  runtime group: 'com.h2database', name: 'h2', version: "$h2Version"
 
 
   runtime "org.apache.logging.log4j:log4j-core:$log4JVersion"
@@ -135,7 +141,7 @@ bintray {
     githubRepo = "keke/cloudslang-vertx"
     version {
       name = "0.0.1"
-      released  = new Date()
+      released = new Date()
     }
   }
 }
