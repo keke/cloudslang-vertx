@@ -27,10 +27,11 @@ public class CloudSlangApi extends AbstractVerticle {
   private static final Logger LOG = LoggerFactory.getLogger(CloudSlangApi.class);
   private HttpServer server;
   private Router restApi;
-  private MessageProducer<JsonObject> publisher;
+  private MessageProducer<FlowParams> publisher;
 
   @Override
   public void start(Future<Void> startFuture) throws Exception {
+
     initWebServer();
     super.start(startFuture);
     LOG.info("CloudSlang API Deployed");
@@ -69,22 +70,26 @@ public class CloudSlangApi extends AbstractVerticle {
       routingContext.response().setStatusCode(400).end();
       return;
     }
-    data.put(NAME, routingContext.request().getParam(NAME));
+    FlowParams params = new FlowParams(data);
+    params.setFlowName(routingContext.request().getParam(NAME));
+//    data.put(NAME, routingContext.request().getParam(NAME));
     String id = UUID.randomUUID().toString();
     data.put("execId", id);
+    params.setExecId(id);
     waitForResponse(id, routingContext);
-    publisher.send(data);
+    publisher.send(params);
   }
 
   private void waitForResponse(String execId, RoutingContext routingContext) {
     final String address = CloudSlangService.EXEC_FLOW_RESPONSE + "_" + execId;
-    MessageConsumer<JsonObject> consumer = vertx.eventBus().consumer(address);
+    MessageConsumer<ExecResponse> consumer = vertx.eventBus().consumer(address);
     consumer.handler(h -> {
       try {
-        JsonObject response = h.body();
-        LOG.debug("Got exec response {}", response.encodePrettily());
-        routingContext.response().setStatusCode(response.getInteger("status-code"))
-            .putHeader("Content-Type", CONTENT_TYPE_UTF_8).end(response.toString());
+        ExecResponse response = h.body();
+        if (LOG.isDebugEnabled())
+          LOG.debug("Got exec response {}", response.toJson().encodePrettily());
+        routingContext.response().setStatusCode(response.getStatusCode())
+            .putHeader("Content-Type", CONTENT_TYPE_UTF_8).end(response.toJson().toString());
       } finally {
         consumer.unregister();
       }

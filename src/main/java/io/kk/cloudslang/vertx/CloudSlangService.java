@@ -29,17 +29,20 @@ import java.util.Set;
 public class CloudSlangService extends AbstractVerticle {
   public static final String EXEC_FLOW = CloudSlangService.class + ".execflow";
   public static final String EXEC_FLOW_RESPONSE = EXEC_FLOW + "_response";
+  public static final String EVENT_EXECUTION_FINISHED = "EVENT_EXECUTION_FINISHED";
+  public static final String EXECUTION_ID = "EXECUTION_ID";
   private static final Logger LOG = LoggerFactory.getLogger(CloudSlangService.class);
   private Slang slang;
   private File contentPath;
 
   @Override
   public void start(Future<Void> startFuture) throws Exception {
+    vertx.eventBus().registerDefaultCodec(FlowParams.class, new FlowParamsCodec());
+    vertx.eventBus().registerDefaultCodec(ExecResponse.class, new ExecResponseCodec());
     contentPath = new File(getContentPath()).getAbsoluteFile().getCanonicalFile();
     if (!contentPath.exists() && !contentPath.isDirectory()) {
       LOG.error("Can not find Content Path at {}", contentPath);
       startFuture.fail(contentPath + " not existed");
-
     } else {
       LOG.info("CloudSlang content path is {}", contentPath);
       initCloudSlang();
@@ -64,17 +67,18 @@ public class CloudSlangService extends AbstractVerticle {
   private void handleCloudSlangEvent(ScoreEvent scoreEvent) {
     LOG.debug("CS event: {}", scoreEvent.getEventType());
     String type = scoreEvent.getEventType();
-    if (type.equals("EVENT_EXECUTION_FINISHED")) {
+    if (type.equals(EVENT_EXECUTION_FINISHED)) {
       Map<String, Object> dataMap = (Map<String, Object>) scoreEvent.getData();
-      long execId = ((Long) dataMap.get("EXECUTION_ID"));
+      long execId = ((Long) dataMap.get(EXECUTION_ID));
       String result = dataMap.get("RESULT").toString();
-      JsonObject msg = new JsonObject();
-      msg.put("status", result);
-      if (result.equals("SUCCESS")) {
+      ExecResponse response = new ExecResponse();
+      response.setStatus(result);
+
+      if (response.getStatus().equals("success")) {
         Map<String, Object> outputs = (Map<String, Object>) dataMap.get("OUTPUTS");
-        msg.put("result", new JsonObject(outputs));
+        response.setResult(new JsonObject(outputs));
       }
-      vertx.eventBus().send(execId + ".finished", msg);
+      vertx.eventBus().send(execId + ".finished", response);
     }
   }
 
@@ -82,59 +86,58 @@ public class CloudSlangService extends AbstractVerticle {
     return Util.getConfig(config(), "CONTENT_PATH", "contentPath");
   }
 
-  private void execFlow(Message<JsonObject> message) {
-    JsonObject params = message.body();
+  private void execFlow(Message<FlowParams> message) {
+    FlowParams params = message.body();
     if (LOG.isDebugEnabled())
-      LOG.debug("To execute a flow {}", params.encodePrettily());
-    String name = params.getString("name");
-    String address = EXEC_FLOW_RESPONSE + "_" + params.getString("execId");
+      LOG.debug("To execute a flow {}", params.toJson().encodePrettily());
+    String name = params.getFlowName();
+    String address = EXEC_FLOW_RESPONSE + "_" + params.getExecId();
     File file = getContentFile(name, "orc.json");
     LOG.debug("Orchestration {} entry is {}", name, file);
     if (!file.exists()) {
       LOG.warn("Flow {} is not found", name);
-      JsonObject obj = new JsonObject();
-      obj.put("status", "error");
-      obj.put("status-code", 500);
-      obj.put("error-reason", "File " + name + " not found");
-      vertx.eventBus().publish(address, obj);
+      ExecResponse response = new ExecResponse();
+      response.setStatus("error");
+      response.setStatusCode(500);
+      response.setErrorReason("File " + name + " not found");
+      vertx.eventBus().publish(address, response);
     } else {
       try {
         JsonObject flowCfg = new JsonObject(FileUtils.readFileToString(file, "UTF-8"));
         if (LOG.isDebugEnabled())
           LOG.debug("Flow [{}] config - {}", name, flowCfg.encodePrettily());
         long slangId = slang.compileAndRun(getSource(name, flowCfg), getDependencies(name, flowCfg),
-            getInputs(params.getJsonObject("args")), getSystemProperties());
-
-        MessageConsumer<JsonObject> consumer = vertx.eventBus().localConsumer(slangId + ".finished");
-        consumer.handler((Message<JsonObject> h) -> {
-          LOG.debug("Result of execution - {}", h.body().encodePrettily());
-          JsonObject response = h.body();
-          if (response.getString("status").equals("SUCCESS")) {
-            response.put("status-code", 200);
+            getInputs(params.getArgs()), getSystemProperties());
+        MessageConsumer<ExecResponse> consumer = vertx.eventBus().localConsumer(slangId + ".finished");
+        consumer.handler((Message<ExecResponse> h) -> {
+          if (LOG.isDebugEnabled())
+            LOG.debug("Result of execution - {}", h.body().toJson().encodePrettily());
+          ExecResponse response = h.body();
+          if (response.getStatus().equals("success")) {
+            response.setStatusCode(200);
           } else {
-            response.put("status-code", 500);
+            response.setStatusCode(500);
           }
           vertx.eventBus().publish(address, h.body());
           consumer.unregister();
         });
         consumer.exceptionHandler(ex -> {
           LOG.warn("Error when executing " + name, ex);
-          JsonObject obj = new JsonObject();
-          obj.put("status", "error");
-          obj.put("status-code", 500);
-          obj.put("error-reason", ex.getMessage());
-          vertx.eventBus().publish(address, obj);
+          ExecResponse response = new ExecResponse();
+          response.setStatus("error");
+          response.setStatusCode(500);
+          response.setErrorReason(ex.toString() + " - " + ex.getMessage());
+          vertx.eventBus().publish(address, ex);
           consumer.unregister();
         });
-
       } catch (Exception e) {
         LOG.error("Unable to execute flow {}", name);
         LOG.error("Unable to execute flow", e);
-        JsonObject obj = new JsonObject();
-        obj.put("status", "error");
-        obj.put("status-code", 500);
-        obj.put("error-reason", e.toString());
-        vertx.eventBus().publish(address, obj);
+        ExecResponse response = new ExecResponse();
+        response.setStatus("error");
+        response.setStatusCode(500);
+        response.setErrorReason(e.toString() + " - " + e.getMessage());
+        vertx.eventBus().publish(address, response);
       }
     }
   }
@@ -152,9 +155,7 @@ public class CloudSlangService extends AbstractVerticle {
   }
 
   private Set<SlangSource> getDependencies(String name, JsonObject cfg) {
-
     LOG.debug("To load dependencies");
-
     Set<SlangSource> depSet = new HashSet<>();
     cfg.getJsonArray("dependencies").forEach(o -> {
       String dep = o.toString();
