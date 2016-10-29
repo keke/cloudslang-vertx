@@ -8,7 +8,36 @@ buildscript {
 }
 plugins {
   id "com.jfrog.bintray" version "1.7"
+  id 'application'
+  id 'com.github.johnrengelman.shadow' version '1.2.3'
+  id 'com.palantir.docker' version '0.9.0'
 }
+
+apply plugin: 'com.github.johnrengelman.shadow'
+
+shadowJar {
+  classifier = 'fat'
+  mergeServiceFiles {
+    include "META-INF/spring.*"
+    include 'META-INF/services/io.vertx.core.spi.VerticleFactory'
+  }
+}
+mainClassName = 'io.kk.cloudslang.vertx.util.RunMain'
+
+artifacts {
+  archives shadowJar
+}
+
+
+docker {
+  dependsOn tasks.shadowJar
+  name "cloudslang-vertx"
+  tags "$projectVersion", "latest"
+  dockerfile 'Dockerfile'
+  buildArgs(["VERSION": "$projectVersion"])
+  files "."
+}
+
 
 group 'io.kk'
 
@@ -57,7 +86,7 @@ dependencies {
   runtime group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: "$log4JVersion"
   runtime "org.slf4j:jul-to-slf4j:$slf4jVersion"
   testCompile "io.vertx:vertx-unit:$vertxVersion"
-  testCompile "org.mockito:mockito-all:$mockitoVersion"
+  testCompile "org.mockito:mockito-core:$mockitoVersion"
   testCompile "org.junit.jupiter:junit-jupiter-api:$junitVersion"
   testRuntime "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
 }
@@ -129,7 +158,7 @@ bintray {
   key = System.getenv("BINTRAY_KEY")
   publications = ['MyPublication']
   publish = true
-  override = true
+//  override = true
   pkg {
     repo = 'keke-maven'
     name = 'cloudslang-vertx'
