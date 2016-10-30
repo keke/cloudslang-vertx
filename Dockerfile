@@ -8,9 +8,6 @@ RUN mkdir /work
 EXPOSE 9999
 VOLUME /config
 VOLUME /data
-
-COPY cloudslang-vertx-$VERSION-fat.jar /work/cloudslangvertx.jar
-
 WORKDIR work
-
+RUN wget -O cloudslangvertx.jar http://dl.bintray.com/keke/keke-maven/io/kk/cloudslang-vertx/$VERSION/cloudslang-vertx-$VERSION-fat.jar
 ENTRYPOINT ["java","-jar", "cloudslangvertx.jar"]

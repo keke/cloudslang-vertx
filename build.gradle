@@ -51,9 +51,6 @@ shadowJar {
 }
 mainClassName = 'io.kk.cloudslang.vertx.util.RunMain'
 
-artifacts {
-  archives shadowJar
-}
 
 dependencies {
   compile group: 'commons-io', name: 'commons-io', version: "$commonsIoVersion"
@@ -140,7 +137,7 @@ task sourcesJar(type: Jar) {
 }
 
 artifacts {
-  archives javadocJar, sourcesJar
+  archives javadocJar, sourcesJar, shadowJar
 }
 
 docker {
@@ -154,7 +151,8 @@ docker {
 bintray {
   user = "keke"
   key = System.getenv("BINTRAY_KEY")
-  publications = ['MyPublication']
+//  publications = ['MyPublication']
+  configurations = ['archives']
   publish = true
 //  override = true
   pkg {
@@ -168,7 +166,7 @@ bintray {
     issueTrackerUrl = 'https://github.com/keke/cloudslang-vertx/issues'
     githubRepo = "keke/cloudslang-vertx"
     version {
-      name = "$version"
+      name = "0.0.2"
       released = new Date()
     }
   }

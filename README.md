@@ -19,6 +19,14 @@ POST /{baseUrl}/urest/v1/{cs-flow-name}
 
 ## Run
 
+### Java
+
+`CloudSlang-Vertx` is published on `JCenter`
+
+```
+compile 'io.kk:cloudslang-vertx:0.0.2'
+```
+
 ### Fat Jar
 
 ```
