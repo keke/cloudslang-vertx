@@ -1,1 +1,16 @@
-FROM openjdk:alpineMAINTAINER keke <iamkeke@gmail.com>ENV REGISTRY_PORT 9999ARG VERSIONRUN mkdir /workVOLUME /configVOLUME /dataEXPOSE 9999COPY cloudslang-vertx-$VERSION-fat.jar /work/cloudslang-vertx-fat.jarWORKDIR workENTRYPOINT ["java","-jar", "cloudslang-vertx-fat.jar"]
+FROM openjdk:alpine
+MAINTAINER keke <iamkeke@gmail.com>
+
+ENV REGISTRY_PORT 9999
+ARG VERSION
+
+RUN mkdir /work
+EXPOSE 9999
+VOLUME /config
+VOLUME /data
+
+COPY cloudslang-vertx-$VERSION-fat.jar /work/cloudslangvertx.jar
+
+WORKDIR work
+
+ENTRYPOINT ["java","-jar", "cloudslangvertx.jar"]

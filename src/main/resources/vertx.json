@@ -16,6 +16,7 @@
     "service": {
       "worker": true,
       "config": {
+        "contentPath": "./src/main/cs"
       }
     }
   }
