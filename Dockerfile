@@ -2,7 +2,7 @@ FROM openjdk:alpine
 MAINTAINER keke <iamkeke@gmail.com>
 
 ENV REGISTRY_PORT 9999
-ARG VERSION
+ARG VERSION=0.0.2
 
 RUN mkdir /work
 EXPOSE 9999
