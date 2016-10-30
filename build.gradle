@@ -8,6 +8,9 @@ buildscript {
 }
 plugins {
   id "com.jfrog.bintray" version "1.7"
+  id 'application'
+  id 'com.github.johnrengelman.shadow' version '1.2.3'
+  id 'com.palantir.docker' version '0.9.1'
 }
 
 group 'io.kk'
@@ -17,8 +20,11 @@ apply plugin: "jacoco"
 apply plugin: 'maven'
 apply plugin: 'maven-publish'
 apply plugin: 'org.junit.platform.gradle.plugin'
+apply plugin: 'com.github.johnrengelman.shadow'
+
 version = "$projectVersion"
 sourceCompatibility = 1.8
+
 publishing {
   publications {
     mavenJava(MavenPublication) {
@@ -34,6 +40,19 @@ publishing {
 repositories {
   mavenLocal()
   jcenter()
+}
+
+shadowJar {
+  classifier = 'fat'
+  mergeServiceFiles {
+    include "META-INF/spring.*"
+    include 'META-INF/services/io.vertx.core.spi.VerticleFactory'
+  }
+}
+mainClassName = 'io.kk.cloudslang.vertx.util.RunMain'
+
+artifacts {
+  archives shadowJar
 }
 
 dependencies {
@@ -57,7 +76,7 @@ dependencies {
   runtime group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: "$log4JVersion"
   runtime "org.slf4j:jul-to-slf4j:$slf4jVersion"
   testCompile "io.vertx:vertx-unit:$vertxVersion"
-  testCompile "org.mockito:mockito-all:$mockitoVersion"
+  testCompile "org.mockito:mockito-core:$mockitoVersion"
   testCompile "org.junit.jupiter:junit-jupiter-api:$junitVersion"
   testRuntime "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
 }
@@ -124,12 +143,20 @@ artifacts {
   archives javadocJar, sourcesJar
 }
 
+docker {
+  dependsOn tasks.shadowJar
+  name "keke/cloudslang-vertx"
+  tags "latest", "$version"
+  dockerfile 'Dockerfile'
+  buildArgs(["VERSION": "$version"])
+}
+
 bintray {
   user = "keke"
   key = System.getenv("BINTRAY_KEY")
   publications = ['MyPublication']
   publish = true
-  override = true
+//  override = true
   pkg {
     repo = 'keke-maven'
     name = 'cloudslang-vertx'
@@ -141,7 +168,7 @@ bintray {
     issueTrackerUrl = 'https://github.com/keke/cloudslang-vertx/issues'
     githubRepo = "keke/cloudslang-vertx"
     version {
-      name = "0.0.1"
+      name = "$version"
       released = new Date()
     }
   }
