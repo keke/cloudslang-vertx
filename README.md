@@ -1,3 +1,6 @@
+[![CircleCI](https://circleci.com/gh/keke/cloudslang-vertx.svg?style=svg)](https://circleci.com/gh/keke/cloudslang-vertx)
+
+
 # CloudSlang Vertx
 
 CloudSlang in Rest API based on [Vertx](vertx.io).
@@ -29,3 +32,4 @@ See [Dockerfile](https://github.com/keke/cloudslang-vertx/blob/master/Dockerfile
 ```
 docker run -v /local/data:/data -e "CONTENT_PATH=/data/cs" -p 9999:9999 keke/cloudslang-vertx
 ```
+
